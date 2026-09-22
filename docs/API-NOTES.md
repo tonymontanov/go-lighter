@@ -32,6 +32,9 @@ Rule of the project: nothing here is guessed. "Not documented" means exactly tha
 | 16 | Testnet status endpoint | [LIVE] `GET /api/v1/status` on testnet → 404 (the OpenAPI lists `/` and `/info` at the root). | Not used. |
 | 17 | Trade fee units | [OAS] `taker_fee` / `maker_fee` integers ("omitted if zero"), unit not documented ([LIVE] 50 on a $99 trade). | Kept as raw int64. |
 | 18 | `size_decimals` vs `supported_size_decimals` | [DOC] trading page says to use `supported_*`. [LIVE] both equal on all 235 mainnet markets. | `supported_*` used. |
+| 19 | Cancel / modify addressing | [DOC] the `index` of cancel / modify is documented as the order index; client order indexes (< 2^48) and exchange order indexes (≥ 2^48) occupy disjoint ranges (lighter-go constants). Not yet confirmed live. | Both accepted in `OrderIndex`; the desk connector cancels by `client_order_index` — verify with `examples/simple-trade`. |
+| 20 | `sendTxBatch` atomicity | [DOC] reply is one `code` + a `tx_hash` array, no per-row status; whether the API server accepts part of a batch is not documented. | The desk connector treats any exchange-level batch error as "outcome unknown" (echo + cancel by client id). |
+| 21 | Per-market `account_orders` push | [LIVE] `account_all_orders` pushes carry `"channel":"account_all_orders:1"`; the per-market channel `account_orders/{m}/{acc}` is documented but its push channel string (`account_orders:{m}:{acc}` assumed) is not observed yet. | RouteKey normalises ':' → '/'; prefix fallback lookup covers deviations. |
 
 ## 2. Endpoints
 

@@ -3,10 +3,11 @@
 Context document for continuing work across sessions. **Update after every
 significant task** (architecture change, new module, refactoring).
 
-Last update: 2026-09-23 — v1.0 SDK code complete: `go test ./... -race`
-green, staticcheck clean, cgo-free + linux/amd64 builds OK, keyless mainnet
-smoke (`make smoke`) passed. Nothing is committed yet (all files untracked in
-git; awaiting the owner's go-ahead). Next: the desk connector (M6).
+Last update: 2026-09-23 — v1.0 SDK complete and committed (`444a8c4`):
+`go test ./... -race` green, staticcheck clean, cgo-free + linux/amd64 builds
+OK, keyless mainnet smoke passed. Desk connector (M6) written on
+sleipnir-trading-core branch `lighter-connector` (5 commits, tests green).
+Blocked on the owner: live order-path check on MAINNET, then tag `v1.0.0`.
 
 ---
 
@@ -197,14 +198,27 @@ both `index` and `account_index`, plus undocumented `bo_positions`, `agent_enabl
   trades / candles, 8 s of ticker + maintained book + stats + trades: 43
   tickers, 88 book updates, no gaps. staticcheck clean (ST1005 fixed).
 
-### 🔧 In progress — M6 desk connector
-- `git add` + first commit of the SDK (owner to confirm), later tag `v1.0.0`
-  after the owner's live order-path check (`examples/simple-trade`, REAL funds).
-- Branch `lighter-connector` from `qa` in sleipnir-trading-core, mirroring the
-  core's `hyperliquid-connector` commits: constants → `connectors/lighter/
-  {common,perpetuals}` → rate-limiter strategy → wiring → docs. While the SDK
-  is unpublished the core's go.mod needs a local `replace` (forbidden on merge
-  by `make check-gomod-replace` — drop it once `v1.0.0` is tagged).
+### ✅ Done (2026-09-23) — M6 desk connector (sleipnir-trading-core, branch `lighter-connector` from `qa`)
+Five commits mirroring the core's `hyperliquid-connector` series: constants
+`lighter_perpetuals[_testnet]` → `internal/connectors/lighter/{common,
+perpetuals}` (ExchangeConnector + OrderEventStreamer + SymbolUnsubscriber)
+→ `LighterPerpetualsRateLimiterStrategy` → wiring (factories, endpoints,
+credentials, `.env.example`, `docker-compose.yml`) → docs. Core tests green
+with `-race` (mock REST + WS, no network); the only failures on the branch
+are the pre-existing `internal/analysis` golden tests (ULP float noise,
+fail on clean `qa` too). Design decisions are recorded in the core's
+`handoff.md` §3 "🔧 В работе (23.09.2026)". SDK commit `444a8c4`.
+
+### 🔧 Blocked on the owner — live check, tag, publish
+- Live order path on MAINNET (no testnet credentials at the desk; REAL
+  funds): `./scripts/run.sh ./examples/simple-trade` (post-only buy 10 %
+  below the bid → modify → cancel → second cancel = missing order), then the
+  core with `lighter_perpetuals`. Open questions the live run answers (see
+  docs/API-NOTES.md rows 19–21): cancel / modify addressed by
+  `client_order_index`, per-market `account_orders` frame shape,
+  `sendTxBatch` atomicity, WS jsonapi reply shape.
+- Then `git tag v1.0.0` + push; in the core add the `go-lighter v1.0.0` line
+  to `go.sum` (`GOWORK=off go mod tidy`) and drop the local `go.work`.
 
 ### 📋 v2.0 — full perps trading
 TP/SL (types 2–5 are already accepted by `CreateOrder`), grouped orders
