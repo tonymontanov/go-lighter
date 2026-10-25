@@ -6,6 +6,7 @@ Unified account reads of the common layer.
 
 ENDPOINTS (openapi.json, verified live on 2026-09-22):
   GET account?by=index&value=N                     → accounts[] (DetailedAccount)
+  GET account?by=l1_address&value=0x…              → accounts[] (main account and sub-accounts of the wallet)
   GET accountActiveOrders?account_index=N[&market_id=M]   (auth) → orders[]
   GET accountInactiveOrders?account_index=N&limit=L[&market_id=M][&cursor=C] (auth) → orders[], next_cursor
   GET accountOrders?account_index=N&client_order_indexes=[..] (auth) → orders[]
@@ -52,6 +53,26 @@ func Account(ctx context.Context, e *engine.Engine, p *Profile) (types.Account, 
 		return types.Account{}, p.invalid(operation, "account "+strconv.FormatInt(e.AccountIndex(), 10)+" not found")
 	}
 	return resp.Accounts[0], nil
+}
+
+/*
+AccountsByL1Address fetches the accounts of an L1 wallet address (the main
+account and its sub-accounts): the way to learn the account index that every
+private endpoint and transaction needs. Public endpoint (no token).
+*/
+func AccountsByL1Address(ctx context.Context, e *engine.Engine, p *Profile, l1Address string) ([]types.Account, error) {
+	const operation string = "AccountsByL1Address"
+	if l1Address == "" || !safeText(l1Address) {
+		return nil, p.invalid(operation, "malformed l1 address")
+	}
+	var q rest.Query
+	q.Str("by", "l1_address").Str("value", l1Address)
+	var resp accountsResponse
+	var err error = e.Query(ctx, "account", q.String(), false, &resp, ratelimit.CategoryQuery)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Accounts, nil
 }
 
 // Positions returns the positions of the section's markets (open or flat).

@@ -35,6 +35,12 @@ func (a *AccountClient) GetAccount(ctx context.Context) (types.Account, error) {
 	return domain.Account(ctx, a.c.engine(), a.c.prof())
 }
 
+// GetAccountsByL1Address returns the accounts (main and sub-accounts) of an L1
+// wallet address — the way to learn the account index for the configuration.
+func (a *AccountClient) GetAccountsByL1Address(ctx context.Context, l1Address string) ([]types.Account, error) {
+	return domain.AccountsByL1Address(ctx, a.c.engine(), a.c.prof(), l1Address)
+}
+
 // GetPositions returns the positions of the perp markets.
 func (a *AccountClient) GetPositions(ctx context.Context) ([]types.Position, error) {
 	return domain.Positions(ctx, a.c.engine(), a.c.prof())

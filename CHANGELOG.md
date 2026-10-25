@@ -42,6 +42,8 @@ All notable changes to this project are documented here. The format follows
   (`"trades": []`) and the update shape (object keyed by market) are both
   decoded. `PositionsPush.TransactionTimeUs` carries the `transaction_time`
   of the positions frame.
+- `Account().GetAccountsByL1Address` — the accounts (main and sub-accounts) of
+  an L1 wallet: the way to learn the account index for the configuration.
 - Root helpers for desk-side rate limiters: `TierFromName` (tier name →
   `RateLimitTier`, with an ok flag) and `TierBudget` (documented per-minute
   budgets of a tier: weighted window, Standard request window, Premium / Plus

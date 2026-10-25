@@ -461,6 +461,18 @@ func TestRejectionsAndMissingOrder(t *testing.T) {
 	}
 }
 
+func TestAccountsByL1Address(t *testing.T) {
+	var m = newMockExchange(t)
+	var _, perps = newSection(t, m, nil)
+	var accounts, err = perps.Account().GetAccountsByL1Address(context.Background(), "0x0000000000000000000000000000000000000000")
+	if err != nil || len(accounts) != 1 || accounts[0].Index != 1 {
+		t.Fatalf("accounts by l1 address: %v %+v", err, accounts)
+	}
+	if _, err = perps.Account().GetAccountsByL1Address(context.Background(), "0x00 00"); err == nil {
+		t.Fatal("malformed address must be rejected before the network")
+	}
+}
+
 func TestAccountReads(t *testing.T) {
 	var m = newMockExchange(t)
 	var _, perps = newSection(t, m, nil)
