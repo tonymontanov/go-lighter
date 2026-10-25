@@ -3,11 +3,15 @@
 Context document for continuing work across sessions. **Update after every
 significant task** (architecture change, new module, refactoring).
 
-Last update: 2026-09-23 — v1.0 SDK complete and committed (`444a8c4`):
-`go test ./... -race` green, staticcheck clean, cgo-free + linux/amd64 builds
-OK, keyless mainnet smoke passed. Desk connector (M6) written on
-sleipnir-trading-core branch `lighter-connector` (5 commits, tests green).
-Blocked on the owner: live order-path check on MAINNET, then tag `v1.0.0`.
+Last update: 2026-10-26 — streams `account_all_trades` (`WatchAccountTrades`),
+`PositionsPush.TransactionTimeUs`, root tier helpers `TierFromName` /
+`TierBudget` (commit `9a877f2`); `go test ./... -race` green. The desk
+connector (sleipnir-trading-core, branch `lighter-connector`) was merged with
+the core's `dev` and reworked to its contracts on 2026-10-26 (venue symbol
+byte-for-byte, two-channel order events, pre-send order registry, API key
+check, tier-driven rate-limiter profile). Still blocked on the owner: the live
+order-path check on MAINNET (`cmd/lighter-live` in the core, then the core
+with `lighter_perpetuals`), then tag `v1.0.0`.
 
 ---
 
@@ -198,7 +202,7 @@ both `index` and `account_index`, plus undocumented `bo_positions`, `agent_enabl
   trades / candles, 8 s of ticker + maintained book + stats + trades: 43
   tickers, 88 book updates, no gaps. staticcheck clean (ST1005 fixed).
 
-### ✅ Done (2026-09-23) — M6 desk connector (sleipnir-trading-core, branch `lighter-connector` from `qa`)
+### ✅ Done (2026-09-23) — M6 desk connector (sleipnir-trading-core, branch `lighter-connector` from `qa`; reworked to the core's `dev` contracts on 2026-10-26 — see the core's handoff.md)
 Five commits mirroring the core's `hyperliquid-connector` series: constants
 `lighter_perpetuals[_testnet]` → `internal/connectors/lighter/{common,
 perpetuals}` (ExchangeConnector + OrderEventStreamer + SymbolUnsubscriber)
@@ -209,14 +213,31 @@ are the pre-existing `internal/analysis` golden tests (ULP float noise,
 fail on clean `qa` too). Design decisions are recorded in the core's
 `handoff.md` §3 "🔧 В работе (23.09.2026)". SDK commit `444a8c4`.
 
+### ✅ Done (2026-10-26) — streams and tier helpers for the reworked desk connector
+- `Stream().WatchAccountTrades` (`account_all_trades/{acc}`): the account's own
+  executions with trade id, price, size, `is_maker_ask`, raw fees and the
+  order / client order indexes of both sides; the documented snapshot shape
+  (`"trades": []`) and the update shape (object keyed by market id) are both
+  decoded (`codec.RawMessage` + lenient branch); flattened to the section's
+  markets; no auth field, as the reference shows (API-NOTES row 22).
+- `PositionsPush.TransactionTimeUs` — `transaction_time` of the positions frame.
+- Root `TierFromName` (case-insensitive, ok flag) and `TierBudget`
+  (`RateLimitBudget{WeightedPerMinute, RequestsPerMinute, SendTxPerMinute}`):
+  the tier tables of `internal/ratelimit` for a desk limiter that learns the
+  tier from `accountLimits` instead of configuration (the core's
+  `lighter-profile.go` does exactly that).
+- Tests: `TestStreams` covers both channels, `rate-limit-event_test.go` the
+  helpers. CHANGELOG, README, API-NOTES rows 22–23 (fee unit).
+
 ### 🔧 Blocked on the owner — live check, tag, publish
-- Live order path on MAINNET (no testnet credentials at the desk; REAL
-  funds): `./scripts/run.sh ./examples/simple-trade` (post-only buy 10 %
-  below the bid → modify → cancel → second cancel = missing order), then the
+- Live order path on MAINNET (REAL funds; the owner's keys are mainnet): first
+  the core harness `go run ./cmd/lighter-live -private -ws -trade -fill -debug`
+  (symbol BTC), optionally `./scripts/run.sh ./examples/simple-trade`, then the
   core with `lighter_perpetuals`. Open questions the live run answers (see
-  docs/API-NOTES.md rows 19–21): cancel / modify addressed by
-  `client_order_index`, per-market `account_orders` frame shape,
-  `sendTxBatch` atomicity, WS jsonapi reply shape.
+  docs/API-NOTES.md rows 19–23): cancel / modify addressed by
+  `client_order_index`, `sendTxBatch` atomicity, WS jsonapi reply shape,
+  `account_all_trades` auth and snapshot contents, fee unit, `user_tier`
+  strings of `accountLimits`, bodies of HTTP 405 / 429, skip-nonce mode.
 - Then `git tag v1.0.0` + push; in the core add the `go-lighter v1.0.0` line
   to `go.sum` (`GOWORK=off go mod tidy`) and drop the local `go.work`.
 
