@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — v1.0.0 (Perpetuals)
+## [Unreleased]
+
+Nothing yet.
+
+## [1.0.0] — 2026-10-26 (Perpetuals)
 
 ### Added
 - Common layer: root `lighter` package (`Client`, `Config`, error / logger /
@@ -56,4 +60,5 @@ All notable changes to this project are documented here. The format follows
 - Tooling: Makefile, golangci-lint config, GitHub Actions (fmt, vet, race,
   cgo-free build, lint), vector generator module.
 
-[Unreleased]: https://github.com/tonymontanov/go-lighter
+[Unreleased]: https://github.com/tonymontanov/go-lighter/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/tonymontanov/go-lighter/releases/tag/v1.0.0

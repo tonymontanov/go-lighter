@@ -11,7 +11,7 @@ the core's `dev` and reworked to its contracts on 2026-10-26 (venue symbol
 byte-for-byte, two-channel order events, pre-send order registry, API key
 check, tier-driven rate-limiter profile). Still blocked on the owner: the live
 order-path check on MAINNET (`cmd/lighter-live` in the core, then the core
-with `lighter_perpetuals`), then tag `v1.0.0`.
+with `lighter_perpetuals`), then tag `v1.0.0` (tagged 2026-10-26).
 
 ---
 
@@ -251,10 +251,12 @@ fail on clean `qa` too). Design decisions are recorded in the core's
   the fill phase (`-fill`) through the harness — the owner's own core run of
   2026-10-26 did produce a maker fill (trade id 36437360049).
 
-### 🔧 Blocked on the owner — tag, publish
-- `git tag v1.0.0` + push once the core's live run with Chase / Grid is
-  accepted; in the core add the `go-lighter v1.0.0` line to `go.sum`
-  (`GOWORK=off go mod tidy`) and drop the local `go.work`.
+### ✅ Done (2026-10-26) — v1.0.0 tagged and published
+- `v1.0.0` tagged on `main` after the owner accepted the core's live runs
+  (harness 38/38, two core runs with Grid / Scale / Chase on BTC mainnet). The
+  core (`sleipnir-trading-core`, branch `lighter-connector` → `dev`) requires
+  `github.com/tonymontanov/go-lighter v1.0.0` from the public module proxy;
+  its local `go.work` replace is gone.
 
 ### 📋 v2.0 — full perps trading
 TP/SL (types 2–5 are already accepted by `CreateOrder`), grouped orders
