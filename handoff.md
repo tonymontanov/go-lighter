@@ -229,17 +229,32 @@ fail on clean `qa` too). Design decisions are recorded in the core's
 - Tests: `TestStreams` covers both channels, `rate-limit-event_test.go` the
   helpers. CHANGELOG, README, API-NOTES rows 22–23 (fee unit).
 
-### 🔧 Blocked on the owner — live check, tag, publish
-- Live order path on MAINNET (REAL funds; the owner's keys are mainnet): first
-  the core harness `go run ./cmd/lighter-live -private -ws -trade -fill -debug`
-  (symbol BTC), optionally `./scripts/run.sh ./examples/simple-trade`, then the
-  core with `lighter_perpetuals`. Open questions the live run answers (see
-  docs/API-NOTES.md rows 19–23): cancel / modify addressed by
-  `client_order_index`, `sendTxBatch` atomicity, WS jsonapi reply shape,
-  `account_all_trades` auth and snapshot contents, fee unit, `user_tier`
-  strings of `accountLimits`, bodies of HTTP 405 / 429, skip-nonce mode.
-- Then `git tag v1.0.0` + push; in the core add the `go-lighter v1.0.0` line
-  to `go.sum` (`GOWORK=off go mod tidy`) and drop the local `go.work`.
+### ✅ Done (2026-10-26, evening) — private and order paths verified live on mainnet through the core harness
+- `cmd/lighter-live -private -ws -trade -rtt=3 -batch=3` (owner's premium
+  account, 0 LIT, symbol BTC, post-only orders far from the market, no fills):
+  36/36 checks after the connector fixes. Confirmed: `apikeys` key check,
+  `accountLimits` → tier `premium`, budgets 24 000 weight / 4000 sendTx per
+  minute; `sendTx` ack has no `order_index` (the first `account_all_orders`
+  frame brings it ≈ 0.7 s later); cancel and modify by `client_order_index`
+  (row 19 confirmed); native modify keeps the order index; `sendTxBatch`
+  3/3 accepted with one `tx_hash` array; RTT ≈ 335 ms per request from the
+  owner's link (create ≈ cancel), identical in sequential and skip nonce
+  modes for single requests. New rows 24–27 in docs/API-NOTES.md: order
+  time units (seconds / ms / µs), tier strings, the API server accepting a
+  cancel / modify of a non-existent order with code 200, and the frame
+  cadence of `account_all_orders` (two identical `open` frames per create,
+  one `open` frame with the new price per modify, `account_all_positions`
+  on every executed tx). Fee ticks: `maker_fee: 40` per fill with
+  `current_maker_fee_tick: 40` — a rate, the tick value is still unknown.
+- Not yet observed: bodies of HTTP 405 / 429, `sendTxBatch` partial
+  acceptance, a sequencer rejection of a cancel (`account_tx` after row 26),
+  the fill phase (`-fill`) through the harness — the owner's own core run of
+  2026-10-26 did produce a maker fill (trade id 36437360049).
+
+### 🔧 Blocked on the owner — tag, publish
+- `git tag v1.0.0` + push once the core's live run with Chase / Grid is
+  accepted; in the core add the `go-lighter v1.0.0` line to `go.sum`
+  (`GOWORK=off go mod tidy`) and drop the local `go.work`.
 
 ### 📋 v2.0 — full perps trading
 TP/SL (types 2–5 are already accepted by `CreateOrder`), grouped orders
