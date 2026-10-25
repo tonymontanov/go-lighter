@@ -62,8 +62,8 @@ private endpoint and transaction needs. Public endpoint (no token).
 */
 func AccountsByL1Address(ctx context.Context, e *engine.Engine, p *Profile, l1Address string) ([]types.Account, error) {
 	const operation string = "AccountsByL1Address"
-	if l1Address == "" || !safeText(l1Address) {
-		return nil, p.invalid(operation, "malformed l1 address")
+	if !isHexAddress(l1Address) {
+		return nil, p.invalid(operation, "malformed l1 address (expected 0x + 40 hex characters)")
 	}
 	var q rest.Query
 	q.Str("by", "l1_address").Str("value", l1Address)
@@ -319,4 +319,20 @@ func AccountTrades(ctx context.Context, e *engine.Engine, p *Profile, symbol str
 		return nil, err
 	}
 	return resp.Trades, nil
+}
+
+// isHexAddress reports whether s is an EVM address: "0x" + 40 hex characters.
+func isHexAddress(s string) bool {
+	if len(s) != 42 || s[0] != '0' || (s[1] != 'x' && s[1] != 'X') {
+		return false
+	}
+	var i int
+	for i = 2; i < len(s); i++ {
+		var c byte = s[i]
+		var hex bool = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+		if !hex {
+			return false
+		}
+	}
+	return true
 }
