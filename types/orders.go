@@ -13,6 +13,9 @@ the market's Precision; the request itself carries human units.
 VIEW (Order) mirrors the exchange JSON one-to-one (json tags are the
 exchange field names). Sources: accountActiveOrders / accountInactiveOrders /
 accountOrders and the account_all_orders / account_orders channels.
+Time units differ per field (verified live 2026-10-26): timestamp /
+created_at / updated_at are unix SECONDS, order_expiry is milliseconds,
+transaction_time is microseconds.
 
 ORDER EXPIRY:
 GTT / post-only / trigger / TWAP orders need order_expiry, a unix ms
@@ -132,11 +135,15 @@ type Order struct {
 	ParentOrderIx int64         `json:"parent_order_index"`
 	ParentOrderID string        `json:"parent_order_id"`
 	BlockHeight   int64         `json:"block_height"`
-	// TimestampMs — order timestamp in milliseconds.
-	TimestampMs int64 `json:"timestamp"`
-	CreatedAtMs int64 `json:"created_at"`
-	UpdatedAtMs int64 `json:"updated_at"`
-	// TransactionTimeUs — sequencer time in microseconds.
+	// Timestamp — time of the last change of the order, unix SECONDS (live
+	// 2026-10-26: 1792965090 while order_expiry is in ms and transaction_time
+	// in us; equals updated_at). Consumers that need milliseconds use
+	// TransactionTimeUs / 1000.
+	Timestamp int64 `json:"timestamp"`
+	// CreatedAt / UpdatedAt — creation and last-change time, unix SECONDS.
+	CreatedAt int64 `json:"created_at"`
+	UpdatedAt int64 `json:"updated_at"`
+	// TransactionTimeUs — sequencer time of the last change in microseconds.
 	TransactionTimeUs int64 `json:"transaction_time"`
 	// OrderVersion — current version (see ModifyOrderRequest.OrderVersion).
 	OrderVersion int64 `json:"order_version"`

@@ -42,6 +42,10 @@ All notable changes to this project are documented here. The format follows
   (`"trades": []`) and the update shape (object keyed by market) are both
   decoded. `PositionsPush.TransactionTimeUs` carries the `transaction_time`
   of the positions frame.
+- `types.Order.Timestamp` / `CreatedAt` / `UpdatedAt` are unix SECONDS (live
+  2026-10-26; the former `*Ms` names were wrong); `CancelForgottenOrders`
+  measures the age from `created_at` in seconds — before, every order looked
+  forgotten against a millisecond deadline.
 - `Account().GetAccountsByL1Address` — the accounts (main and sub-accounts) of
   an L1 wallet: the way to learn the account index for the configuration.
 - Root helpers for desk-side rate limiters: `TierFromName` (tier name →

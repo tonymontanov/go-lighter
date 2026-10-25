@@ -120,11 +120,18 @@ func (t *TradingClient) CancelForgottenOrders(ctx context.Context, symbol string
 	if err != nil {
 		return nil, types.BatchReceipt{}, err
 	}
-	var deadlineMs int64 = time.Now().Add(-ttl).UnixMilli()
+	// Order times are unix SECONDS (created_at — creation; timestamp —
+	// last change): the age is measured from creation, so an order modified a
+	// moment ago is still "forgotten" when it was placed long enough ago.
+	var deadline int64 = time.Now().Add(-ttl).Unix()
 	var stale []types.Order = orders[:0]
 	var i int
 	for i = 0; i < len(orders); i++ {
-		if orders[i].TimestampMs <= deadlineMs {
+		var createdAt int64 = orders[i].CreatedAt
+		if createdAt == 0 {
+			createdAt = orders[i].Timestamp
+		}
+		if createdAt <= deadline {
 			stale = append(stale, orders[i])
 		}
 	}

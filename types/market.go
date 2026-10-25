@@ -196,8 +196,12 @@ type Trade struct {
 	BlockHeight int64 `json:"block_height"`
 	// TimestampMs — trade time in milliseconds.
 	TimestampMs int64 `json:"timestamp"`
-	// TakerFee / MakerFee — raw integer fees as sent by the exchange (omitted
-	// when zero); the unit is not documented.
+	// TakerFee / MakerFee — the fee TICKS of the account that paid them (the
+	// account's current_maker_fee_tick / current_taker_fee_tick of
+	// accountLimits), NOT amounts: live 2026-10-26 every maker fill of a
+	// premium account carried maker_fee=40 regardless of size while
+	// accountLimits reported current_maker_fee_tick=40. The value of one tick
+	// is not documented (see docs/API-NOTES.md row 23).
 	TakerFee int64 `json:"taker_fee"`
 	MakerFee int64 `json:"maker_fee"`
 	// Position sizes and entry quotes of both sides BEFORE the trade.
