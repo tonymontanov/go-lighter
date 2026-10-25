@@ -34,7 +34,18 @@ All notable changes to this project are documented here. The format follows
   balance, leverage, isolated margin, close position, API key check,
   limits, trades), MarketData (markets, details, book, trades, candles,
   funding rates, slippage price), Stream (order book, ticker, market stats,
-  trades, candles, orders, positions, account stats, transactions).
+  trades, candles, orders, positions, account stats, transactions,
+  account trades).
+- Stream `WatchAccountTrades` (`account_all_trades`): the account's own
+  executions with trade id, price, size, maker side, raw fees and the order /
+  client order indexes of both sides; the documented snapshot shape
+  (`"trades": []`) and the update shape (object keyed by market) are both
+  decoded. `PositionsPush.TransactionTimeUs` carries the `transaction_time`
+  of the positions frame.
+- Root helpers for desk-side rate limiters: `TierFromName` (tier name →
+  `RateLimitTier`, with an ok flag) and `TierBudget` (documented per-minute
+  budgets of a tier: weighted window, Standard request window, Premium / Plus
+  sendTx bucket by staked LIT).
 - Examples `market-data` (keyless) and `simple-trade` (gated, live funds).
 - Tooling: Makefile, golangci-lint config, GitHub Actions (fmt, vet, race,
   cgo-free build, lint), vector generator module.

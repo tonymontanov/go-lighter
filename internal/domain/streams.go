@@ -15,7 +15,9 @@ CHANNELS (official WebSocket reference, shapes verified live on 2026-09-22):
   candle/{market}/{resolution} current candle, 500 ms batching
   account_all_orders/{acc}     (auth) orders of every market, keyed by market
   account_orders/{m}/{acc}     (auth) orders of one market
-  account_all_positions/{acc}  positions keyed by market
+  account_all_positions/{acc}  positions keyed by market (+ transaction_time)
+  account_all_trades/{acc}     trades of the account keyed by market; the
+                               subscription snapshot carries "trades": []
   user_stats/{acc}             collateral, leverage, buying power
   account_tx/{acc}             (auth) transactions with their sequencer status
 
@@ -49,6 +51,7 @@ import (
 
 	"github.com/tonymontanov/go-lighter/internal/codec"
 	"github.com/tonymontanov/go-lighter/internal/engine"
+	"github.com/tonymontanov/go-lighter/internal/lterr"
 	"github.com/tonymontanov/go-lighter/internal/ltlog"
 	"github.com/tonymontanov/go-lighter/internal/orderbook"
 	"github.com/tonymontanov/go-lighter/internal/ws"
@@ -472,14 +475,20 @@ func WatchOrders(ctx context.Context, deps StreamDeps, p *Profile, symbol string
 }
 
 // positionsFrame — account_all_positions push: positions keyed by market id.
+// transaction_time is the sequencer time of the state in microseconds (0 when
+// the frame does not carry it).
 type positionsFrame struct {
-	Positions map[string]types.Position `json:"positions"`
+	Positions         map[string]types.Position `json:"positions"`
+	TransactionTimeUs int64                     `json:"transaction_time"`
 }
 
 // PositionsPush — one push of the positions channel (section's markets only).
 type PositionsPush struct {
 	Positions  []types.Position
 	IsSnapshot bool
+	// TransactionTimeUs — sequencer time of the pushed state, microseconds;
+	// 0 when the frame carries none.
+	TransactionTimeUs int64
 }
 
 // WatchPositions streams position updates of the account (public channel:
@@ -502,6 +511,7 @@ func WatchPositions(ctx context.Context, deps StreamDeps, p *Profile, handler fu
 		}
 		push.Positions = push.Positions[:0]
 		push.IsSnapshot = isSnapshot
+		push.TransactionTimeUs = frame.TransactionTimeUs
 		var position types.Position
 		for _, position = range frame.Positions {
 			if p.Owns(position.MarketID) {
@@ -512,6 +522,105 @@ func WatchPositions(ctx context.Context, deps StreamDeps, p *Profile, handler fu
 	}, onReset, errHandler)
 	return err
 }
+
+// accountTradesFrame — account_all_trades push. The documented subscription
+// snapshot carries "trades" as an ARRAY ("trades": [] in the reference), the
+// updates as an object keyed by market id — the field is decoded leniently.
+type accountTradesFrame struct {
+	Trades codec.RawMessage `json:"trades"`
+}
+
+// AccountTradesPush — one push of the account trades channel: the trades of
+// the section's markets, flattened. IsSnapshot marks the subscription snapshot.
+type AccountTradesPush struct {
+	Trades     []types.Trade
+	IsSnapshot bool
+}
+
+/*
+WatchAccountTrades streams the trades of the account (account_all_trades):
+every execution with trade id, price, size, maker side (is_maker_ask), raw
+fees and the order / client order indexes of both sides. The trades of the
+section's markets are flattened into one push. onReset fires on every
+(re)connect; the exchange follows with a fresh snapshot.
+The reference shows no auth field for this channel (as for
+account_all_positions); see docs/API-NOTES.md.
+*/
+func WatchAccountTrades(ctx context.Context, deps StreamDeps, p *Profile, handler func(*AccountTradesPush), onReset func(), errHandler func(error)) error {
+	var err error = ensureMarkets(ctx, p)
+	if err != nil {
+		if errHandler != nil {
+			errHandler(err)
+		}
+		return err
+	}
+	var frame accountTradesFrame
+	var list []types.Trade
+	var byMarket map[string][]types.Trade
+	var push AccountTradesPush
+	_, err = watch(ctx, deps, accountChannel("account_all_trades", deps.Engine.AccountIndex()), false, func(data []byte, isSnapshot bool) {
+		frame.Trades = frame.Trades[:0]
+		if decodeErr := codec.Unmarshal(data, &frame); decodeErr != nil {
+			dropped(deps, "account_all_trades", decodeErr)
+			return
+		}
+		push.Trades = push.Trades[:0]
+		push.IsSnapshot = isSnapshot
+		var raw []byte = trimLeadingSpace(frame.Trades)
+		switch {
+		case len(raw) == 0 || raw[0] == 'n':
+			// absent or null: an empty push (the snapshot of a quiet account)
+		case raw[0] == '[':
+			list = list[:0]
+			if decodeErr := codec.Unmarshal(raw, &list); decodeErr != nil {
+				dropped(deps, "account_all_trades", decodeErr)
+				return
+			}
+			push.Trades = appendOwnedTrades(push.Trades, list, p)
+		case raw[0] == '{':
+			byMarket = nil
+			if decodeErr := codec.Unmarshal(raw, &byMarket); decodeErr != nil {
+				dropped(deps, "account_all_trades", decodeErr)
+				return
+			}
+			var market []types.Trade
+			for _, market = range byMarket {
+				push.Trades = appendOwnedTrades(push.Trades, market, p)
+			}
+		default:
+			dropped(deps, "account_all_trades", lterrUnexpectedShape)
+			return
+		}
+		handler(&push)
+	}, onReset, errHandler)
+	return err
+}
+
+// appendOwnedTrades appends the trades of the section's markets to out.
+func appendOwnedTrades(out []types.Trade, trades []types.Trade, p *Profile) []types.Trade {
+	var i int
+	for i = 0; i < len(trades); i++ {
+		if p.Owns(trades[i].MarketID) {
+			out = append(out, trades[i])
+		}
+	}
+	return out
+}
+
+// trimLeadingSpace skips JSON whitespace in front of a raw value.
+func trimLeadingSpace(raw []byte) []byte {
+	var i int
+	for i = 0; i < len(raw); i++ {
+		var c byte = raw[i]
+		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {
+			break
+		}
+	}
+	return raw[i:]
+}
+
+// lterrUnexpectedShape — the "trades" field is neither an array nor an object.
+var lterrUnexpectedShape error = lterr.New(lterr.ErrorKindUnknown, "account_all_trades: trades is neither an array nor an object", nil)
 
 // accountStatsFrame — user_stats push.
 type accountStatsFrame struct {

@@ -534,6 +534,13 @@ func TestStreams(t *testing.T) {
 			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"channel":"account_tx:1","txs":[{"hash":"abc","type":14,"status":2,"executed_at":5,"event_info":"{\"ae\":\"\"}"},{"hash":"def","type":15,"status":0,"event_info":"{\"a\":1,\"ae\":\"AppErrInvalidOrderIndex\"}"}],"type":"update/account_tx"}`))
 		case strings.Contains(frame, `"channel":"ticker/0"`):
 			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"channel":"ticker:0","last_updated_at":1790087793439875,"nonce":22685517741,"ticker":{"s":"ETH","a":{"price":"2723.04","size":"0.7528"},"b":{"price":"2723.03","size":"0.6468"},"last_updated_at":1790087793439875},"timestamp":1790087793444,"type":"subscribed/ticker"}`))
+		case strings.Contains(frame, `"channel":"account_all_trades/1"`):
+			// Documented snapshot: "trades" is an ARRAY (empty); updates key the
+			// trades by market id. The spot market 2048 must be filtered out.
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"channel":"account_all_trades:1","trades":[],"total_volume":"0","monthly_volume":"0","weekly_volume":"0","daily_volume":"0","type":"subscribed/account_all_trades"}`))
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"channel":"account_all_trades:1","trades":{"0":[{"trade_id":9001,"tx_hash":"0xabc","type":"trade","market_id":0,"size":"0.0050","price":"1998.50","usd_amount":"9.9925","ask_id":777,"bid_id":500,"ask_client_id":0,"bid_client_id":11,"ask_account_id":42,"bid_account_id":1,"is_maker_ask":false,"block_height":10,"timestamp":1002,"maker_fee":0,"taker_fee":5,"transaction_time":1002000}],"2048":[{"trade_id":9002,"market_id":2048,"size":"1","price":"1"}]},"type":"update/account_all_trades"}`))
+		case strings.Contains(frame, `"channel":"account_all_positions/1"`):
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"channel":"account_all_positions:1","positions":{"0":{"market_id":0,"symbol":"ETH","sign":1,"position":"0.5000","avg_entry_price":"2500.00","position_value":"1250","unrealized_pnl":"12.5","realized_pnl":"0","liquidation_price":"0","margin_mode":0},"2048":{"market_id":2048,"symbol":"ETH/USDC","sign":1,"position":"1"}},"transaction_time":1790087793444000,"type":"subscribed/account_all_positions"}`))
 		}
 	}
 	var root, perps = newSection(t, m, nil)
@@ -631,5 +638,51 @@ func TestStreams(t *testing.T) {
 	}
 	if !perps.Stream().IsConnected() {
 		t.Fatal("IsConnected")
+	}
+
+	// account_all_trades: the snapshot (array form) is an empty push, the update
+	// (object form) is flattened and filtered to the section's markets.
+	var tradePushes = make(chan AccountTradesPush, 4)
+	if err = perps.Stream().WatchAccountTrades(ctx, func(push *AccountTradesPush) {
+		tradePushes <- AccountTradesPush{Trades: append([]types.Trade(nil), push.Trades...), IsSnapshot: push.IsSnapshot}
+	}, nil, func(err error) { t.Error(err) }); err != nil {
+		t.Fatal(err)
+	}
+	var snapshotPush, updatePush AccountTradesPush
+	select {
+	case snapshotPush = <-tradePushes:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no account trades snapshot")
+	}
+	select {
+	case updatePush = <-tradePushes:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no account trades update")
+	}
+	if !snapshotPush.IsSnapshot || len(snapshotPush.Trades) != 0 {
+		t.Fatalf("account trades snapshot = %+v", snapshotPush)
+	}
+	if updatePush.IsSnapshot || len(updatePush.Trades) != 1 {
+		t.Fatalf("account trades update = %+v", updatePush)
+	}
+	var trade types.Trade = updatePush.Trades[0]
+	if trade.TradeID != 9001 || trade.MarketID != 0 || trade.Size != fx("0.0050") || trade.Price != fx("1998.50") || trade.IsMakerAsk || trade.AskAccountID != 42 || trade.BidAccountID != 1 || trade.BidID != 500 || trade.BidClientID != 11 || trade.TakerFee != 5 || trade.TimestampMs != 1002 || trade.TransactionTimeUs != 1002000 {
+		t.Fatalf("account trade = %+v", trade)
+	}
+
+	// account_all_positions: the frame time reaches the push; spot filtered out.
+	var positionPushes = make(chan PositionsPush, 2)
+	if err = perps.Stream().WatchPositions(ctx, func(push *PositionsPush) {
+		positionPushes <- PositionsPush{Positions: append([]types.Position(nil), push.Positions...), IsSnapshot: push.IsSnapshot, TransactionTimeUs: push.TransactionTimeUs}
+	}, nil, func(err error) { t.Error(err) }); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case push := <-positionPushes:
+		if !push.IsSnapshot || push.TransactionTimeUs != 1790087793444000 || len(push.Positions) != 1 || push.Positions[0].SignedSize() != fx("0.5") {
+			t.Fatalf("positions push = %+v", push)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no positions push")
 	}
 }

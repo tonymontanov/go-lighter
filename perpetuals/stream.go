@@ -81,6 +81,13 @@ func (s *StreamClient) WatchPositions(ctx context.Context, handler func(*domain.
 	return domain.WatchPositions(ctx, s.c.streamDeps(), s.c.prof(), handler, onReset, errHandler)
 }
 
+// WatchAccountTrades streams the trades of the account on the perp markets
+// (account_all_trades): trade id, price, size, maker side, raw fees, order
+// and client order indexes of both sides. onReset fires on every (re)connect.
+func (s *StreamClient) WatchAccountTrades(ctx context.Context, handler func(*domain.AccountTradesPush), onReset func(), errHandler func(error)) error {
+	return domain.WatchAccountTrades(ctx, s.c.streamDeps(), s.c.prof(), handler, onReset, errHandler)
+}
+
 // WatchAccountStats streams collateral / leverage / buying power (user_stats).
 func (s *StreamClient) WatchAccountStats(ctx context.Context, handler func(*types.AccountStats), errHandler func(error)) error {
 	return domain.WatchAccountStats(ctx, s.c.streamDeps(), handler, errHandler)
@@ -100,6 +107,8 @@ type (
 	OrdersPush = domain.OrdersPush
 	// PositionsPush — one push of the positions channel.
 	PositionsPush = domain.PositionsPush
+	// AccountTradesPush — one push of the account trades channel.
+	AccountTradesPush = domain.AccountTradesPush
 	// InactiveOrdersPage — one page of inactive orders.
 	InactiveOrdersPage = domain.InactiveOrdersPage
 )

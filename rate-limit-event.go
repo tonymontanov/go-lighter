@@ -70,3 +70,69 @@ const (
 // EndpointWeight returns the documented REST weight of an endpoint name
 // (path without /api/v1/), 300 for unlisted endpoints.
 func EndpointWeight(endpoint string) int64 { return ratelimit.Weight(endpoint) }
+
+// RateLimitBudget — documented per-minute budgets of an account tier. A zero
+// field means the tier has no such window.
+type RateLimitBudget struct {
+	// WeightedPerMinute — weighted REST window (24 000; Builder 240 000).
+	WeightedPerMinute int64
+	// RequestsPerMinute — unweighted request window (Standard: 60, sendTx
+	// included); 0 for the other tiers.
+	RequestsPerMinute int64
+	// SendTxPerMinute — sendTx / sendTxBatch bucket of Premium (by staked LIT)
+	// and Plus (4000) accounts; 0 for Standard and Builder.
+	SendTxPerMinute int64
+}
+
+/*
+TierFromName maps a tier name as the exchange or an operator spells it
+("standard", "Premium", "PLUS", "builder"; case-insensitive) to a
+RateLimitTier. ok == false when the name is empty or unknown — the caller
+keeps its current tier instead of silently falling back to Standard.
+*/
+func TierFromName(name string) (RateLimitTier, bool) {
+	switch lowerASCII(name) {
+	case "standard":
+		return RateLimitTierStandard, true
+	case "premium":
+		return RateLimitTierPremium, true
+	case "plus":
+		return RateLimitTierPlus, true
+	case "builder":
+		return RateLimitTierBuilder, true
+	default:
+		return RateLimitTierStandard, false
+	}
+}
+
+// TierBudget returns the documented per-minute budgets of a tier; stakedLIT
+// (whole tokens) sizes the Premium sendTx bucket.
+func TierBudget(tier RateLimitTier, stakedLIT int64) RateLimitBudget {
+	var budget RateLimitBudget = RateLimitBudget{WeightedPerMinute: ratelimit.WeightedLimit(tier)}
+	switch tier {
+	case RateLimitTierPremium:
+		budget.SendTxPerMinute = ratelimit.PremiumSendTxLimit(stakedLIT)
+	case RateLimitTierPlus:
+		budget.SendTxPerMinute = ratelimit.PlusSendTxPerMinute
+	case RateLimitTierBuilder:
+		// weighted window only; sendTx is counted in it
+	default:
+		budget.RequestsPerMinute = ratelimit.StandardRequestsPerMinute
+	}
+	return budget
+}
+
+// lowerASCII lowers ASCII letters without importing strings into the hot-path
+// root package (the function runs on configuration, not on requests).
+func lowerASCII(s string) string {
+	var out []byte = make([]byte, len(s))
+	var i int
+	for i = 0; i < len(s); i++ {
+		var c byte = s[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		out[i] = c
+	}
+	return string(out)
+}

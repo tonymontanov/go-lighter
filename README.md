@@ -115,6 +115,7 @@ _ = perps.Stream().WatchOrderBook(ctx, "ETH", 20, func(b *types.OrderBook) {
 }, nil, errHandler)
 _ = perps.Stream().WatchTicker(ctx, "ETH", func(t *types.Ticker) { /* best bid / ask */ }, errHandler)
 _ = perps.Stream().WatchOrders(ctx, "", func(p *perpetuals.OrdersPush) { /* order updates */ }, nil, errHandler)
+_ = perps.Stream().WatchAccountTrades(ctx, func(p *perpetuals.AccountTradesPush) { /* own executions: trade id, maker side, fees */ }, nil, errHandler)
 ```
 
 Handlers run on the connection goroutine and receive reused values: copy
